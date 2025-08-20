@@ -1,0 +1,117 @@
+# 1) เตรียมไลบรารี
+import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib import rcParams
+import plotly.express as px
+------------------------------------------------------------------------------
+# ตั้งค่าฟอนต์ให้รองรับภาษาไทย
+plt.rcParams["font.family"] = "DejaVu Sans"
+rcParams['font.family'] = 'Tahoma'  # ฟอนต์ภาษาไทย (สามารถเปลี่ยนเป็น Angsana New, Cordia New ตามระบบ)
+rcParams['axes.unicode_minus'] = False  # แสดงเครื่องหมายลบปกติ
+rcParams['font.size'] = 14  # ขยายขนาดตัวอักษร
+-----------------------------------------------------------------------------
+# 2) กำหนดแหล่งข้อมูลและคอลัมน์ที่ต้องใช้
+url = "http://datacatalog.tat.or.th/dataset/458dcb66-2093-4b29-adc7-82284b4c3ae6/resource/8fd28f3a-2090-4e33-ab13-2568cd68d827/download/activity2024.csv"
+keep_cols = ["ACT_NAME_TH","REGION_NAME_TH","DISTRICT_NAME_TH","PROVINCE_NAME_TH","LEVEL_NAME","ACT_LOCATION"]
+-----------------------------------------------------------------------------
+# 3) โหลดข้อมูลและเลือกเฉพาะคอลัมน์ที่ต้องการ
+df = pd.read_csv(url, encoding="utf-8-sig", dtype=str)
+df = df[keep_cols]
+-----------------------------------------------------------------------------
+# 4) ทำความสะอาดข้อมูล
+df = df.applymap(lambda x: x.strip() if isinstance(x, str) else x)  # ตัดช่องว่าง
+df = df.drop_duplicates()  # ลบข้อมูลซ้ำ
+df = df.dropna(subset=["ACT_NAME_TH"])  # ต้องมีชื่อแหล่งท่องเที่ยว
+-----------------------------------------------------------------------------
+# 5) คัดเฉพาะข้อมูล "ภาคกลาง" และ "กรุงเทพมหานคร"
+mask_region = df["REGION_NAME_TH"].str.contains("กลาง", na=False)
+mask_bkk = df["PROVINCE_NAME_TH"].str.contains("กรุงเทพ", na=False)
+df_bkk = df[mask_region & mask_bkk].copy()
+-----------------------------------------------------------------------------
+# 6) สร้างตารางแหล่งท่องเที่ยวในกรุงเทพฯ
+bkk_places = (df_bkk[["REGION_NAME_TH","ACT_NAME_TH","DISTRICT_NAME_TH","LEVEL_NAME","ACT_LOCATION"]]
+              .drop_duplicates()
+              .sort_values(["DISTRICT_NAME_TH","ACT_NAME_TH"], na_position="last")
+              .reset_index(drop=True))
+# แสดงตัวอย่างตาราง
+bkk_places.head(10)
+-----------------------------------------------------------------------------
+
+places_per_district = (bkk_places
+                       .groupby("DISTRICT_NAME_TH")["ACT_NAME_TH"]
+                       .nunique()
+                       .sort_values(ascending=False))
+places_per_district.head(10)  # ดู 10 เขตแรก
+-----------------------------------------------------------------------------
+
+plt.figure(figsize=(12, 10))
+places_per_district.plot(kind="barh")
+
+plt.xlabel("จำนวนแหล่งท่องเที่ยว (ไม่ซ้ำชื่อ)")
+plt.ylabel("เขต")
+plt.title("จำนวนแหล่งท่องเที่ยวในกรุงเทพมหานคร แยกตามเขต")
+
+plt.gca().invert_yaxis()  # ให้เขตที่มีจำนวนมากสุดอยู่ด้านบน
+plt.tight_layout()
+plt.show()
+-----------------------------------------------------------------------------
+
+places_per_level = (bkk_places
+                    .groupby("LEVEL_NAME")["ACT_NAME_TH"]
+                    .nunique()
+                    .sort_values(ascending=False))
+
+plt.figure(figsize=(10, 6))
+places_per_level.plot(kind="bar")
+
+plt.xlabel("ระดับ (LEVEL_NAME)")
+plt.ylabel("จำนวนแหล่งท่องเที่ยว (ไม่ซ้ำชื่อ)")
+plt.title("จำนวนแหล่งท่องเที่ยวในกรุงเทพมหานคร แยกตามระดับ")
+
+plt.xticks(rotation=45, ha="right")
+plt.tight_layout()
+plt.show()
+-----------------------------------------------------------------------------
+
+# 1) จัดเรียงเขตก่อน
+bkk_places_sorted = bkk_places.sort_values(["REGION_NAME_TH","DISTRICT_NAME_TH","ACT_NAME_TH"]).reset_index(drop=True)
+
+# 2) ขยายชื่อสถานที่ท่องเที่ยวให้อยู่คนละแถว (ถ้าอยากให้ดูง่าย)
+bkk_places_table = bkk_places_sorted[["REGION_NAME_TH","DISTRICT_NAME_TH","ACT_NAME_TH","LEVEL_NAME","ACT_LOCATION"]]
+
+# 3) แสดงทั้งหมด
+pd.set_option("display.max_rows", None)  # แสดงทุกแถว
+pd.set_option("display.max_columns", None)  # แสดงทุกคอลัมน์
+pd.set_option("display.width", 1000)
+pd.set_option("display.colheader_justify", "center")
+
+bkk_places_table
+-----------------------------------------------------------------------------
+
+# แยกพิกัดจากคอลัมน์ ACT_LOCATION
+bkk_places_table[['LAT', 'LON']] = bkk_places_table['ACT_LOCATION'].str.split(',', expand=True)
+bkk_places_table['LAT'] = pd.to_numeric(bkk_places_table['LAT'], errors='coerce')
+bkk_places_table['LON'] = pd.to_numeric(bkk_places_table['LON'], errors='coerce')
+
+# ลบแถวที่พิกัดไม่ถูกต้อง
+bkk_places_map = bkk_places_table.dropna(subset=['LAT','LON']).copy()
+
+# สร้างแผนที่แบ่งสีตามเขต
+fig = px.scatter_mapbox(
+    bkk_places_map,
+    lat='LAT',
+    lon='LON',
+    hover_name='ACT_NAME_TH',
+    hover_data={'DISTRICT_NAME_TH':True, 'LEVEL_NAME':True},
+    color='DISTRICT_NAME_TH',  # แยกสีตามเขต
+    zoom=11,
+    height=700
+)
+
+fig.update_layout(
+    mapbox_style="open-street-map",  # สามารถใช้ 'carto-positron','stamen-terrain' ได้
+    title="แผนที่สถานที่ท่องเที่ยวในกรุงเทพมหานคร (แบ่งสีตามเขต)"
+)
+
+fig.show()
+
