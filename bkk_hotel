@@ -1,0 +1,105 @@
+# 1) เตรียมไลบรารีี
+import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib import rcParams
+import json
+import plotly.graph_objects as go
+import plotly.express as px
+import requests
+
+# ตั้งค่าฟอนต์ให้รองรับภาษาไทย
+plt.rcParams["font.family"] = "DejaVu Sans"
+rcParams['font.family'] = 'Tahoma'  # ฟอนต์ภาษาไทย (สามารถเปลี่ยนเป็น Angsana New, Cordia New ตามระบบ)
+rcParams['axes.unicode_minus'] = False  # แสดงเครื่องหมายลบปกติ
+rcParams['font.size'] = 14  # ขยายขนาดตัวอักษร
+# -------------------------------
+
+data = pd.read_csv('C:\\Python Project\\bankok_hotel.csv')
+keep_data = ["name","host_id","neighbourhood","latitude","longitude","room_type","price","reviews_per_month"]
+data = data[keep_data]
+# -------------------------------
+
+# 3) ทำความสะอาดข้อมูล
+df = df.dropna(subset=["name", "price"])   # ต้องมีชื่อและราคา
+df = df.drop_duplicates()                  # ลบข้อมูลซ้ำ้ำ
+# -------------------------------
+df = df[keep_data]
+df["price"].mean()
+df["room_type"].value_counts()
+# 4) ตรวจสอบตัวอย่างข้อมูล
+print(df.head(10))
+# -------------------------------
+
+#วิเคราะห์จำนวนห้องพักแยกตามเขต (neighbourhood)
+rooms_per_district = (df
+                      .groupby("neighbourhood")["name"]
+                      .nunique()
+                      .sort_values(ascending=False))
+
+plt.figure(figsize=(12, 8))
+rooms_per_district.head(20).plot(kind="barh")
+plt.xlabel("จำนวนห้องพัก (ไม่ซ้ำชื่อ)")
+plt.ylabel("เขต")
+plt.title("จำนวนห้องพักในกรุงเทพฯ แยกตามเขต")
+plt.gca().invert_yaxis()
+plt.tight_layout()
+plt.show()
+# -------------------------------
+
+#วิเคราะห์ประเภทห้องพัก
+rooms_per_type = df["room_type"].value_counts()
+
+plt.figure(figsize=(8, 6))
+rooms_per_type.plot(kind="bar")
+plt.xlabel("ประเภทห้องพัก")
+plt.ylabel("จำนวน")
+plt.title("ประเภทห้องพักที่เปิดให้เช่าในกรุงเทพฯ")
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+# -------------------------------
+
+#สร้างแผนที่แสดงตำแหน่งโรงแรม
+fig = px.scatter_mapbox(
+    df.dropna(subset=['latitude','longitude']),
+    lat="latitude",
+    lon="longitude",
+    hover_name="name",
+    hover_data={"neighbourhood":True, "room_type":True, "price":True},
+    color="neighbourhood",
+    zoom=10,
+    height=700
+)
+
+fig.update_layout(
+    mapbox_style="open-street-map",
+    title="แผนที่โรงแรม/ที่พักในกรุงเทพมหานคร (แบ่งสีตามเขต)"
+)
+fig.show()
+# -------------------------------
+#กราฟเส้น: ค่าเฉลี่ยรีวิวต่อเดือน แยกตามประเภทห้องพัก
+reviews_line = (df.groupby("room_type")["reviews_per_month"]
+                  .mean()
+                  .sort_values())
+
+plt.figure(figsize=(10, 6))
+reviews_line.plot(marker="o", linestyle="-", linewidth=2)
+plt.xlabel("ประเภทห้องพัก")
+plt.ylabel("ค่าเฉลี่ยรีวิวต่อเดือน")
+plt.title("ค่าเฉลี่ยจำนวนรีวิวต่อเดือน แยกตามประเภทห้องพัก")
+plt.xticks(rotation=45)
+plt.grid(True, linestyle="--", alpha=0.6)
+plt.tight_layout()
+plt.show()
+
+# -------------------------------
+#แผนภูมิวงกลม: สัดส่วนห้องพักแยกตามเขต
+district_pie = df["neighbourhood"].value_counts().head(10)  # เอา Top 10 เขต
+
+plt.figure(figsize=(8, 8))
+district_pie.plot(kind="pie", autopct="%1.1f%%", startangle=140, counterclock=False)
+plt.ylabel("")
+plt.title("สัดส่วนห้องพักในกรุงเทพฯ (Top 10 เขต)")
+plt.tight_layout()
+plt.show()
+
