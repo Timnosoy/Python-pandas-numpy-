@@ -1,0 +1,99 @@
+import plotly.graph_objects as go
+import math
+
+# -----------------------------
+# ฟังก์ชันคำนวณระยะทาง (เมตร)
+# -----------------------------
+def haversine_m(lat1, lon1, lat2, lon2):
+    R = 6371000
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlmb = math.radians(lon2 - lon1)
+    a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlmb/2)**2
+    c = 2 * math.asin(math.sqrt(a))
+    return R * c
+
+# -----------------------------
+# พิกัดตัวอย่าง
+# -----------------------------
+hotel = {"name": "Baan Nampetch Hostel for 4 guest ", "lat": 13.76044, "lng": 100.50095}
+    
+places = [
+    {"name": "Siam Paragon", "lat": 13.75513, "lng": 100.4909},
+    {"name": "MBK Center", "lat": 13.75107, "lng": 100.501},
+    {"name": "Central World", "lat": 13.76162, "lng": 100.4703},
+    {"name": "Lumphini Park", "lat": 13.76075, "lng": 100.4984},
+    {"name": "Jim Thompson House", "lat": 13.74693, "lng": 100.535},
+]
+
+# -----------------------------
+# ความเร็วเฉลี่ย (m/s)
+# -----------------------------
+walking_speed = 5 / 3.6   # 5 km/h
+driving_speed = 30 / 3.6  # 30 km/h
+
+# -----------------------------
+# สร้างแผนที่
+# -----------------------------
+fig = go.Figure()
+
+# จุดโรงแรม (ศูนย์กลาง)
+fig.add_trace(go.Scattermapbox(
+    lat=[hotel["lat"]],
+    lon=[hotel["lng"]],
+    mode="markers+text",
+    text=[hotel["name"]],
+    textposition="top center",
+    marker=dict(size=14, color="green"),
+    name="Baan Nampetch Hostel for 4 guest"
+))
+
+print(f"\n📍 สถานที่รอบๆ {hotel['name']}:\n")
+
+# เพิ่มจุดสถานที่รอบ ๆ
+for p in places:
+    dist_m = haversine_m(hotel["lat"], hotel["lng"], p["lat"], p["lng"])
+    dist_km = dist_m / 1000
+    time_walk_min = dist_m / walking_speed / 60
+    time_drive_min = dist_m / driving_speed / 60
+
+    # ✅ แสดงผลใน Terminal
+    print(f"➡️  จาก {hotel['name']} ไป {p['name']}")
+    print(f"   - ระยะทาง: {dist_km:.2f} กม.")
+    print(f"   - เดินประมาณ: {time_walk_min:.1f} นาที")
+    print(f"   - ขับรถประมาณ: {time_drive_min:.1f} นาที\n")
+
+    # จุดแต่ละสถานที่
+    fig.add_trace(go.Scattermapbox(
+        lat=[p["lat"]],
+        lon=[p["lng"]],
+        mode="markers+text",
+        text=[p["name"]],
+        textposition="top center",
+        marker=dict(size=12, color="red"),
+        name=p["name"]
+    ))
+
+    # เส้นเชื่อมจากโรงแรมไปสถานที่นั้น
+    fig.add_trace(go.Scattermapbox(
+        lat=[hotel["lat"], p["lat"]],
+        lon=[hotel["lng"], p["lng"]],
+        mode="lines+text",
+        line=dict(width=2, color="green"),
+        text=[None, f"{dist_km:.2f} km\n {time_walk_min:.1f} min\n {time_drive_min:.1f} min"],
+        textposition="middle right",
+        name=f"To {p['name']}"
+    ))
+
+# -----------------------------
+# ตั้งค่าแผนที่
+# -----------------------------
+fig.update_layout(
+    mapbox_style="open-street-map",
+    mapbox_zoom=13,
+    mapbox_center={"lat": hotel["lat"], "lon": hotel["lng"]},
+    height=700,
+    title=f"สถานที่รอบๆ {hotel['name']}"
+)
+
+fig.show()
